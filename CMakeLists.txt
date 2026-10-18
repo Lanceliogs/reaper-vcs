@@ -26,6 +26,6 @@ FetchContent_MakeAvailable(wavpack)
 # libcrypto
 
 add_executable(reaper-vcs
-    src/main.cpp src/utils.cpp
+    src/main.cpp src/hash.cpp src/flac.cpp
 )
 target_link_libraries(reaper-vcs PRIVATE wavpack OpenSSL::Crypto)

@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "hash.h"
 
 #include <openssl/evp.h>
 #include <fstream>
@@ -16,7 +16,7 @@ struct OpenSSLFree {
 template <typename T>
 using OpenSSLPointer = std::unique_ptr<T, OpenSSLFree>;
 
-std::string utils::hashfile(const std::string& path)
+std::string hash::hashfile(const std::string& path)
 {
     OpenSSLPointer<EVP_MD_CTX> ctx(EVP_MD_CTX_new());
     if(ctx.get() == nullptr) {

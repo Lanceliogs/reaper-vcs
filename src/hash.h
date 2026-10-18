@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace utils {
+namespace hash {
 
 std::string hashfile(const std::string& path);
 
