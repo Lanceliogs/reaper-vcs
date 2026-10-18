@@ -1,20 +1,13 @@
 #include <iostream>
 
-#include <wavpack.h>
-
-#include "third-party/json.hpp"
-using json = nlohmann::json;
-
-#include <openssl/crypto.h>
+#include "utils.h"
 
 int main(int argc, char** argv)
 {
-    (void)argc;
-    (void)argv;
+    std::string filename(argv[1]);
 
-    std::string hello = R"({"msg": "Hello, World!"})";
-    json a = json::parse(hello);
-    std::cout << std::string(a["msg"]) << std::endl;
+    std::cout << filename << ":" << std::endl;
+    std::cout << "SHA256: " << utils::hashfile(filename) << std::endl;
 
     return 0;
 }

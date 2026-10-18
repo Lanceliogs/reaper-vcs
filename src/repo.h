@@ -17,18 +17,17 @@ struct MediaFileEntry
 class Repository
 {
 public:
-    Repository() = default;
+    Repository();
     ~Repository() = default;
 
     int init();
     int load();
     int save() const;
 
-    int compress() const;
-    int restore(const std::string& commit) const;
+    int add(const std::string& path) const;
+    int restore(const std::string path) const;
 
 private:
-    std::string m_root;
     std::vector<MediaFileEntry> m_files;
 };
 
