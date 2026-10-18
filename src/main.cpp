@@ -5,6 +5,8 @@
 #include "third-party/json.hpp"
 using json = nlohmann::json;
 
+#include <openssl/crypto.h>
+
 int main(int argc, char** argv)
 {
     (void)argc;

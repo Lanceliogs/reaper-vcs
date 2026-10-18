@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 4.0)
 
 project(reaper-vcs)
 
+set(CMAKE_CXX_STANDARD 17)
+
+set(OPENSSL_USE_STATIC_LIBS TRUE)    # <== set correctly before find_package
+find_package(OpenSSL REQUIRED)
+
 include(FetchContent)
 
 # libwavpack for flac support
@@ -22,6 +27,7 @@ FetchContent_MakeAvailable(wavpack)
 
 add_executable(reaper-vcs
     src/main.cpp
+    src/repo.cpp
 )
 
-target_link_libraries(reaper-vcs PRIVATE wavpack)
+target_link_libraries(reaper-vcs PRIVATE wavpack OpenSSL::Crypto)
