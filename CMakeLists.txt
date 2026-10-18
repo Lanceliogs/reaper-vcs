@@ -4,6 +4,7 @@ project(reaper-vcs)
 
 include(FetchContent)
 
+# libwavpack for flac support
 FetchContent_Declare(
     wavpack
     GIT_REPOSITORY https://github.com/dbry/WavPack
@@ -16,6 +17,8 @@ set(WAVPACK_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(WAVPACK_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(wavpack)
+
+# libcrypto
 
 add_executable(reaper-vcs
     src/main.cpp
