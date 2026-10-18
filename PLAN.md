@@ -163,14 +163,14 @@ Commande de sauvegarde (appelée au pre-commit) :
 
 bash
 reaper-vcs hash-and-store --input Media/Guitare.wav --store-dir .reaper-git/
-Utilisez le code avec précaution.
+
 • Ce qu'elle fait : Elle calcule le SHA-256 de Guitare.wav. Elle vérifie si .reaper-git/[SHA256].wv existe déjà. Si non, elle compresse le fichier directement en mémoire via libwavpack et l'écrit sur le disque sous le nom de son hash. Enfin, elle retourne le hash sur la sortie standard (stdout) pour que votre script l'ajoute au manifeste.
 
 Commande de restauration (appelée au post-checkout) :
 
 bash
 reaper-vcs restore --manifest manifeste.json --store-dir .reaper-git/
-Utilisez le code avec précaution.
+
 • Ce qu'elle fait : Elle lit le manifeste JSON, vérifie quels fichiers manquent dans le dossier Media/ de REAPER (ou sont obsolètes), va chercher les fichiers .wv correspondants dans .reaper-git/ via leur hash, et les décompresser instantanément au format .wav d'origine.
 
 4. Stratégie de compilation statique (Toolchain)
