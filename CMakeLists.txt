@@ -4,7 +4,7 @@ project(reaper-vcs)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(OPENSSL_USE_STATIC_LIBS TRUE)    # <== set correctly before find_package
+set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
 
 include(FetchContent)
@@ -23,9 +23,13 @@ set(WAVPACK_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(wavpack)
 
-# libcrypto
-
 add_executable(reaper-vcs
     src/main.cpp src/hash.cpp
 )
 target_link_libraries(reaper-vcs PRIVATE wavpack OpenSSL::Crypto)
+
+
+add_executable(test_wavpack
+    src/dirty_chatgpt_example.cpp
+)
+target_link_libraries(test_wavpack PRIVATE wavpack)

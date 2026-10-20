@@ -1,2 +1,4 @@
 # For now, we stay basic
 build/
+*.wav
+*.wv
