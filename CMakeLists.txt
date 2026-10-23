@@ -24,9 +24,9 @@ set(WAVPACK_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(wavpack)
 
 add_executable(reaper-vcs
-    src/main.cpp src/hash.cpp
+    src/main.cpp src/hash.cpp src/wvra.cpp
 )
-target_link_libraries(reaper-vcs PRIVATE wavpack OpenSSL::Crypto)
+target_link_libraries(reaper-vcs PRIVATE wavpack OpenSSL::Crypto z)
 
 
 add_executable(test_wavpack

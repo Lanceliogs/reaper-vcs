@@ -28,7 +28,7 @@ static uint16_t u16(const unsigned char* p)
     return uint16_t(p[0]) | (uint16_t(p[1]) << 8);
 }
 
-uint32_t u32(const unsigned char* p, size_t count)
+static uint32_t u32(const unsigned char* p, size_t count)
 {
     uint32_t value = 0;
     for (size_t i = 0; i < count && i < 4; ++i)

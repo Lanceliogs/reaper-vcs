@@ -24,7 +24,7 @@ std::string hash::hashfile(const std::string& path)
         return "";
     }
 
-    std::ifstream f(path, std::fstream::binary);
+    std::ifstream f(path, std::ios::binary);
     if (f.bad()) {
         std::cout << "Could not open " << path << std::endl;
         return "";
