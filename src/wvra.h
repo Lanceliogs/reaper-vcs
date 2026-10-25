@@ -38,4 +38,8 @@ template<typename Callback>
 bool walkChunks(std::istream& in, uint64_t startOffset, uint64_t endOffset, Callback&& callback);
 
 bool analyse(const std::string& path);
+
+bool compress(const std::string& srcPath, const std::string& dstPath);
+bool uncompress(const std::string& srcPath, const std::string& dstPath);
+
 };
