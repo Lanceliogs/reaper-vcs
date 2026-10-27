@@ -23,13 +23,12 @@ set(WAVPACK_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(wavpack)
 
-add_executable(reaper-vcs
-    src/main.cpp src/hash.cpp src/wvra.cpp
+add_executable(analyse
+    src/analyse.cpp src/hash.cpp src/wvra.cpp src/wavpack_utils.cpp
 )
-target_link_libraries(reaper-vcs PRIVATE wavpack OpenSSL::Crypto z)
+target_link_libraries(analyse PRIVATE wavpack OpenSSL::Crypto z)
 
-
-add_executable(test_wavpack
-    src/dirty_chatgpt_example.cpp
+add_executable(compress
+    src/compress.cpp src/hash.cpp src/wvra.cpp src/wavpack_utils.cpp
 )
-target_link_libraries(test_wavpack PRIVATE wavpack)
+target_link_libraries(compress PRIVATE wavpack OpenSSL::Crypto z)

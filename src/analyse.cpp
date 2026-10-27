@@ -5,13 +5,13 @@
 
 int main(int argc, char** argv)
 {
-    std::string filename(argv[1]);
+    std::string srcPath(argv[1]);
 
-    std::cout << filename << ":" << std::endl;
-    std::cout << "SHA256: " << hash::hashfile(filename) << std::endl;
+    std::cout << srcPath << ":" << std::endl;
+    std::cout << "SHA256: " << hash::hashfile(srcPath) << std::endl;
     std::cout << std::endl;
 
-    bool success = wvra::analyse(filename);
+    bool success = wvra::analyse(srcPath);
     std::cout << "Analyse returned: " << (success ? "SUCCESS" : "FAILURE") << std::endl;
 
     return 0;

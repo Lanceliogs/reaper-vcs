@@ -1,6 +1,6 @@
 #include "wvra.h"
 
-#include <wavpack.h>
+#include "wavpack_utils.h"
 
 #include <iostream>
 #include <cstring>
@@ -200,21 +200,36 @@ static bool s_processFmt(std::istream &src, std::ostream &dst, const ChunkInfo& 
 {
     dst.write(chunk.id.data(), 4);
     writeU32LE(dst, chunk.dataSize);
-    if (dst.bad()) return false;
+    if (dst.bad())
+    {
+        std::cout << "Could not write fmt header" << std::endl;
+        return false;
+    }
 
     size_t start = chunk.dataOffset; 
     size_t size = chunk.dataSize + (chunk.hasPadding ? 1 : 0);
 
     if (size < 16)
+    {
+        std::cout << "fmt size is <16, which should be the minimum" << std::endl;
         return false;
+    }
+        
 
     char buf[40] = {0};
     size_t toRead = size < sizeof(buf) ? size : sizeof(buf);
-
-    if (src.read(buf, toRead).bad() ||src.gcount() != toRead);
+    if ( src.read(buf, toRead).bad() || src.gcount() < toRead)
+    {
+        std::cout << "Could not read bytes from src: " << toRead << std::endl; 
         return false;
-    if (dst.write(buf, toRead).bad())
+    }
+    
+    dst.write(buf, toRead);
+    if (dst.bad())
+    {
+        std::cout << "Could not write bytes in dst: " << toRead << std::endl;
         return false;
+    }
 
     // The first 16 bytes are present in every standard WAVE fmt chunk.
     std::memcpy(&fmt.FormatTag,       buf + 0,  2);
@@ -236,7 +251,7 @@ static bool s_processFmt(std::istream &src, std::ostream &dst, const ChunkInfo& 
         return true;
     
     char rbuf[remaining];
-    if (src.read(rbuf, remaining).bad() ||src.gcount() < remaining)
+    if (src.read(rbuf, remaining).bad() || src.gcount() < remaining)
         return false;
 
     return dst.write(rbuf, sizeof(rbuf)).good();
@@ -250,74 +265,60 @@ static int s_writeBlock(void* id, void* data, int32_t count)
     return dst->good() ? 1 : 0;
 }
 
-int32_t s_pcmSample(const uint8_t* p, size_t bytes)
-{
-    uint32_t value = u32LE(p, bytes);
-    const unsigned bits = static_cast<unsigned>(bytes * 8);
-
-    if (bits < 32 && (value & (uint32_t{1} << (bits - 1))))
-        value |= (~uint32_t{0} << bits);
-
-    return static_cast<int32_t>(value);
-}
-
 bool s_processData(std::istream& src, std::ostream& dst, const ChunkInfo& chunk, const WaveHeader& fmt)
 {
     if (fmt.NumChannels == 0 || fmt.SampleRate == 0 || fmt.BitsPerSample == 0)
         return false;
-    
-        WavpackContext* ctx = WavpackOpenFileOutput(s_writeBlock, &dst, nullptr);
-    if (!ctx)
-        return false;
 
-    WavpackConfig cfg{};
+    dst.write("pckd", 4);
+    uint64_t sizepos = dst.tellp();
+    writeU32LE(dst, 0); // placeholder size
+    writeU32LE(dst, 0); // placeholder crc32
+    if (dst.bad()) return false;
 
-    cfg.num_channels = fmt.NumChannels;
-    cfg.sample_rate = fmt.SampleRate;
-    cfg.bits_per_sample = fmt.BitsPerSample;
-    cfg.bytes_per_sample = (fmt.BitsPerSample + 7) / 8;
-    cfg.channel_mask = fmt.ChannelMask;
-
-    // TODO: Set the correct channel mask and lossless flags.
-
-    int64_t total_samples = chunk.dataSize / fmt.BlockAlign;
-    bool ok = WavpackSetConfiguration64(ctx, &cfg, total_samples, nullptr) && WavpackPackInit(ctx);
-
-    const size_t stride = fmt.BlockAlign / fmt.NumChannels;
-    std::vector<uint8_t> raw(fmt.BlockAlign * BUFFER_SIZE);
-    std::vector<int32_t> samples(fmt.NumChannels * BUFFER_SIZE);
-
-    uint64_t remaining = chunk.dataSize;
-    while (ok && remaining > 0)
+    uint64_t startpos = sizepos + 8;
     {
-        const uint64_t count = std::min<uint64_t>(raw.size(), remaining);
-        if (count % fmt.BlockAlign != 0)
+        WavpackEncoder encoder(dst);
+        if (encoder.bad())
+            return false;
+        if (!encoder.configure(fmt, chunk.dataSize))
+            return false;
+
+        std::vector<char> raw(BUFFER_SIZE * fmt.BlockAlign);
+        uint64_t remaining = chunk.dataSize;
+        while (remaining > 0)
         {
-            ok = false;
-            break;
+            const uint64_t count = std::min<uint64_t>(raw.size(), remaining);
+            if (count % fmt.BlockAlign != 0) {
+                std::cout << "Bad align: " << count << " " << fmt.BlockAlign << " " << count % fmt.BlockAlign << std::endl; 
+                return false;
+            }
+            if (src.read(raw.data(), count).bad() || src.gcount() < count) {
+                std::cout << "Bad read" << std::endl;
+                return false;
+            }
+            if (!encoder.encode(raw.data(), count)) {
+                std::cout << "Bad encode" << std::endl;
+                return false;
+            }
+            remaining -= count;
         }
-        if (src.read((char*)raw.data(), count).bad() || src.gcount() != count)
-        {
-            ok = false;
-            break;
+
+        if (!encoder.flush()) {
+            std::cout << "Bad flush" << std::endl;
+            return false;
         }
-
-        const size_t frames = count / fmt.BlockAlign;
-        const size_t sampleCount = frames * fmt.NumChannels;
-
-        for (size_t i = 0; i < sampleCount; ++i)
-            samples[i] = s_pcmSample(raw.data() + i * stride, stride);
-
-        if (!WavpackPackSamples(ctx, samples.data(), frames))
-            ok = false;
-
-        remaining -= count;
     }
 
-    if (ok) ok = WavpackFlushSamples(ctx);
-    WavpackCloseFile(ctx);
-    
-    return ok;
+    uint64_t endpos = dst.tellp();
+    uint64_t compressedSize = endpos - startpos;
+    dst.seekp(sizepos);
+    writeU32LE(dst, compressedSize);
+    dst.seekp(endpos);
+    if (compressedSize & 1)
+        dst.put(0);
+
+    return dst.good();
 }
 
 bool s_copyChunk(std::istream& src, std::ostream& dst, const ChunkInfo& chunk)
@@ -331,15 +332,16 @@ bool s_copyChunk(std::istream& src, std::ostream& dst, const ChunkInfo& chunk)
     while (remaining > 0)
     {
         uint32_t count = std::min(remaining, static_cast<uint32_t>(BUFFER_SIZE));
-        if (src.read(bytes, count).bad() || src.gcount() != count)
+        if (src.read(bytes, count).bad() || src.gcount() < count)
             return false;
         if (dst.write(bytes, count).bad())
             return false;
+        remaining -= count;
     }
     return true;
 }
 
-bool compress(const std::string& srcPath, const std::string& dstPath)
+bool wvra::compress(const std::string& srcPath, const std::string& dstPath)
 {
     std::ifstream src(srcPath, std::ios::binary);
 
@@ -357,7 +359,7 @@ bool compress(const std::string& srcPath, const std::string& dstPath)
         return false;
     }
 
-    std::ofstream dst(srcPath, std::ios::binary);
+    std::ofstream dst(dstPath, std::ios::binary);
     dst.write("WVRA", 4);
     writeU32LE(dst, 0);
     dst.write("RIFF", 4);
@@ -369,14 +371,18 @@ bool compress(const std::string& srcPath, const std::string& dstPath)
 
     std::cout << "=== CHUNKS ===" << std::endl;
     bool success =  walkChunks(src, finfo.chunkStartOffset, finfo.size,
-        [&](const ChunkInfo& chunk, std::istream& source) -> bool {
+        [&](const ChunkInfo& chunk, std::istream& s) -> bool {
+            std::cout << "CHUNK: "  << std::string_view(chunk.id.data(), 4) << " " << chunk.dataSize << std::endl;
             if (chunk.id == fourCC("fmt "))
-                return s_processFmt(src, dst, chunk, fmt);
+                return s_processFmt(s, dst, chunk, fmt);
             else if (chunk.id == fourCC("data"))
-                return s_processData(src, dst, chunk, fmt);
-            return s_copyChunk(src, dst, chunk);
+                return s_processData(s, dst, chunk, fmt);
+            return s_copyChunk(s, dst, chunk);
         }
     );
+
+    if (!success)
+        return false;
 
     uint32_t riffsize = static_cast<uint32_t>(dst.tellp()) - 8;
     dst.seekp(4);
@@ -384,7 +390,7 @@ bool compress(const std::string& srcPath, const std::string& dstPath)
     return dst.good();
 }
 
-bool uncompress(const std::string& srcPath, const std::string& dstPath)
+bool wvra::uncompress(const std::string& srcPath, const std::string& dstPath)
 {
     return true;
 }
