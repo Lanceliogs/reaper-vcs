@@ -1,0 +1,7 @@
+*.wav filter=audiovcs -text
+*.aif filter=audiovcs -text
+*.aiff filter=audiovcs -text
+*.mp3 filter=audiovcs -text
+*.ogg filter=audiovcs -text
+*.flac filter=audiovcs -text
+*.opus filter=audiovcs -text

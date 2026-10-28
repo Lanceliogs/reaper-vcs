@@ -8,6 +8,7 @@
 
 #include <zlib.h>
 
+#define RIFF_CHUNK_START_OFFSET 12
 #define BUFFER_SIZE 4096
 
 using namespace wvra;
@@ -42,30 +43,25 @@ static void writeU32LE(std::ostream& dst, uint32_t value)
 
 bool wvra::readHeader(std::istream& input, FileInfo& finfo)
 {
+    finfo.size = 0;
+    finfo.type = FileType::Unknown;
+
     FourCC id;
     input.seekg(0);
     input.read(id.data(), 4);
 
-    if (id == fourCC("RIFF"))
-    {
-        finfo.type = FileType::WAV;
-        finfo.chunkStartOffset = 12;
-    }
-    else if (id == fourCC("WVRA"))
-    {
-        finfo.type = FileType::WVRA;
-        finfo.chunkStartOffset = 20;
-    }
-    else
-    {
-        finfo.type = FileType::Unknown;
-        finfo.size = 0;
-        finfo.chunkStartOffset = 0;
+    if (id != fourCC("RIFF"))
         return false;
-    }
     
     finfo.size = readU32LE(input, 4) + 8;
+    input.read(id.data(), 4);
 
+    if (id == fourCC("WAVE"))
+        finfo.type = FileType::WAV;
+    else if (id == fourCC("WVRA"))
+        finfo.type = FileType::WVRA;
+    else
+        return false;
     return true;
 }
 
@@ -80,7 +76,6 @@ void wvra::printFileInfo(const FileInfo& finfo)
             break;
     }
     std::cout << "SIZE: " << finfo.size << std::endl;
-    std::cout << "HEADER SIZE: " << finfo.chunkStartOffset << std::endl;
 }
 
 template<typename Callback>
@@ -138,7 +133,7 @@ bool wvra::analyse(const std::string& path)
     printFileInfo(finfo);
 
     std::cout << "=== CHUNKS ===" << std::endl;
-    bool success =  walkChunks(input, finfo.chunkStartOffset, finfo.size,
+    bool success =  walkChunks(input, RIFF_CHUNK_START_OFFSET, finfo.size,
         [](const ChunkInfo& chunk, std::istream& source) -> bool {
             std::cout << std::string_view(chunk.id.data(), 4) << std::endl;
             std::cout << "  SIZE: " << chunk.dataSize << std::endl; 
@@ -270,13 +265,14 @@ bool s_processData(std::istream& src, std::ostream& dst, const ChunkInfo& chunk,
     if (fmt.NumChannels == 0 || fmt.SampleRate == 0 || fmt.BitsPerSample == 0)
         return false;
 
-    dst.write("pckd", 4);
-    uint64_t sizepos = dst.tellp();
+    dst.write("data", 4);
+    writeU32LE(dst, 8); // placeholder crc32
+    uint64_t datapos = dst.tellp();
     writeU32LE(dst, 0); // placeholder size
     writeU32LE(dst, 0); // placeholder crc32
     if (dst.bad()) return false;
 
-    uint64_t startpos = sizepos + 8;
+    uint64_t startpos = dst.tellp();
     {
         WavpackEncoder encoder(dst);
         if (encoder.bad())
@@ -312,7 +308,7 @@ bool s_processData(std::istream& src, std::ostream& dst, const ChunkInfo& chunk,
 
     uint64_t endpos = dst.tellp();
     uint64_t compressedSize = endpos - startpos;
-    dst.seekp(sizepos);
+    dst.seekp(datapos);
     writeU32LE(dst, compressedSize);
     dst.seekp(endpos);
     if (compressedSize & 1)
@@ -360,17 +356,22 @@ bool wvra::compress(const std::string& srcPath, const std::string& dstPath)
     }
 
     std::ofstream dst(dstPath, std::ios::binary);
-    dst.write("WVRA", 4);
-    writeU32LE(dst, 0);
+    // RIFF header
     dst.write("RIFF", 4);
+    writeU32LE(dst, 0);
+    dst.write("WVRA", 4);
+
+    // wave old size chunk
+    dst.write("wave", 4);
+    writeU32LE(dst, 4);
     writeU32LE(dst, finfo.size);
-    dst.write("WAVE", 4);
+    
 
     WaveHeader fmt{};
     std::memset(&fmt, 0, sizeof(fmt));
 
     std::cout << "=== CHUNKS ===" << std::endl;
-    bool success =  walkChunks(src, finfo.chunkStartOffset, finfo.size,
+    bool success =  walkChunks(src, RIFF_CHUNK_START_OFFSET, finfo.size,
         [&](const ChunkInfo& chunk, std::istream& s) -> bool {
             std::cout << "CHUNK: "  << std::string_view(chunk.id.data(), 4) << " " << chunk.dataSize << std::endl;
             if (chunk.id == fourCC("fmt "))

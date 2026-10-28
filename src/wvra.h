@@ -27,7 +27,6 @@ enum FileType {Unknown, WAV, WVRA};
 struct FileInfo {
     FileType type;
     size_t size;
-    uint64_t chunkStartOffset;
 };
 
 bool readHeader(std::istream& in, FileInfo& finfo);

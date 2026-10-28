@@ -1,34 +1,45 @@
-cmake_minimum_required(VERSION 4.0)
-
-project(reaper-vcs)
+cmake_minimum_required(VERSION 3.20)
+project(audiovcs VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 17)
+
+# Default install prefix: %LOCALAPPDATA%/audiovcs on Windows, ~/.local on Linux
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    if(WIN32)
+        set(CMAKE_INSTALL_PREFIX "$ENV{LOCALAPPDATA}/audiovcs"
+            CACHE PATH "Install prefix" FORCE)
+    else()
+        set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/.local"
+            CACHE PATH "Install prefix" FORCE)
+    endif()
+endif()
+
+# Static linking: embed the C/C++ runtime so the exe has zero DLL dependencies
+if(MINGW)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+endif()
 
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
 
 include(FetchContent)
 
-# libwavpack for flac support
 FetchContent_Declare(
     wavpack
     GIT_REPOSITORY https://github.com/dbry/WavPack
-    GIT_TAG        5.9.0 # or whichever release/tag you need
+    GIT_TAG        5.9.0
 )
 
-# Optional: Disable building WavPack CLI tools, tests, or docs if you only want the library
 set(WAVPACK_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(WAVPACK_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(WAVPACK_INSTALL OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(wavpack)
 
-add_executable(analyse
-    src/analyse.cpp src/hash.cpp src/wvra.cpp src/wavpack_utils.cpp
-)
-target_link_libraries(analyse PRIVATE wavpack OpenSSL::Crypto z)
+add_subdirectory(core)
 
-add_executable(compress
-    src/compress.cpp src/hash.cpp src/wvra.cpp src/wavpack_utils.cpp
-)
-target_link_libraries(compress PRIVATE wavpack OpenSSL::Crypto z)
+option(BUILD_TESTS "Build tests" OFF)
+if(BUILD_TESTS)
+    add_subdirectory(test)
+endif()
